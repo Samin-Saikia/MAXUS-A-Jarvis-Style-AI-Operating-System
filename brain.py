@@ -1,6 +1,7 @@
 import os
 import json
 from speach_recognition import transcribe_microphone
+from eye import eye
 from groq import Groq
 from dotenv import load_dotenv
 from TTS import tts
@@ -86,7 +87,7 @@ def chat_system():
     
 
     print("MAXUS started.")
-    print("Commands:/remember <text> , quit\n")
+    print("Commands:/remember <text> , quit , /live , /vision\n")
 
     while True:
         user_input = input("You: ").strip()
@@ -98,6 +99,10 @@ def chat_system():
             print('we are live now')
             tts('boss, we are live now')
             live()
+            break
+        if user_input.startswith("/vision"):
+            tts('vision mode activated, kindly select the photo need to be proceded BOSS')
+            eye()
             break
         # Store long-term memory manually
         if user_input.startswith("/remember"):
@@ -121,7 +126,7 @@ def chat_system():
 
         reply = response.choices[0].message.content
         print(f"MAXUS: {reply}")
-      
+        
         # Update session memory
         session_memory.append({"role": "user", "content": user_input})
         session_memory.append({"role": "assistant", "content": reply})
