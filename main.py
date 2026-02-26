@@ -167,6 +167,40 @@ def vision():
     except Exception as e:
         print("VISION ERROR:", e)
         return jsonify({"reply": "Vision backend error occurred."}), 500
+
+
+@app.route("/search", methods=["POST"])
+def search():
+    try:
+        data = request.json
+        user_query = data.get("message")
+
+        if not user_query:
+            return jsonify({"reply": "No message received."})
+
+        messages = build_messages(user_query)
+
+        response = client.chat.completions.create(
+            model=NORMAL_MODEL,
+            messages=messages,
+            temperature=0.7,
+            max_tokens=1024
+        )
+
+        reply = response.choices[0].message.content
+
+        # update session memory
+        session_memory.append({"role": "user", "content": user_query})
+        session_memory.append({"role": "assistant", "content": reply})
+
+        if len(session_memory) > MAX_SESSION_MESSAGES * 2:
+            session_memory[:] = session_memory[-MAX_SESSION_MESSAGES * 2:]
+
+        return jsonify({"reply": reply})
+
+    except Exception as e:
+        print("ERROR:", e)
+        return jsonify({"reply": "Backend error occurred."}), 500
 # =========================
 # RUN
 # =========================
