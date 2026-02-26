@@ -181,7 +181,7 @@ def search():
         messages = build_messages(user_query)
 
         response = client.chat.completions.create(
-            model=NORMAL_MODEL,
+            model='groq/compound',
             messages=messages,
             temperature=0.7,
             max_tokens=1024
