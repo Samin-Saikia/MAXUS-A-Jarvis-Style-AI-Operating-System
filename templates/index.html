@@ -1156,7 +1156,8 @@
 
   <script>
 
-    let jarvisVoice = null;   // ✅ ADD THIS
+    let jarvisVoice = null;
+   // ✅ ADD THIS
     // 1. Create an array of Jarvis-inspired lines
 const jarvisLines = [
     " ALL System ready. All parameters nominal . responce delivered.",
@@ -1178,8 +1179,7 @@ function getRandomJarvisLine() {
     // Return the element at the random index
     return jarvisLines[randomIndex];
 }
-    let micActive = false;
-    let recognition = null;
+
     // Clock
     function updateClock() {
       const now = new Date();
@@ -1239,19 +1239,20 @@ function speakJarvis(text) {
 
     // Mic toggle
 // Move these variables outside the function so they persist between calls
-
+let micActive = false;
+let recognition = null;
 
 function toggleMic() {
   micActive = !micActive; // Now this toggles the persistent variable
   
   const micBtn = document.getElementById('micBtn');
-  const voiceBtn = document.getElementById('voiceBtn');
+
   const bars = document.querySelectorAll('.bar');
   const badge = document.querySelector('.listening-badge div:last-child');
 
   if (micActive) {
     micBtn.classList.add('active');
-    voiceBtn.classList.add('active');
+
     bars.forEach(b => b.style.animationPlayState = 'running');
 
     // Try Web Speech API
@@ -1278,7 +1279,6 @@ function toggleMic() {
     }
   } else {
     micBtn.classList.remove('active');
-    voiceBtn.classList.remove('active');
     if (recognition) { 
       recognition.stop(); 
       recognition = null; 
