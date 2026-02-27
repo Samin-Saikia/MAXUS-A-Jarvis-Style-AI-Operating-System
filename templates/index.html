@@ -1154,7 +1154,10 @@
   <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  
 
 
   <script>
@@ -1491,63 +1494,66 @@ function openLinkedIn() {
 
 async function generatePdf() {
     const { jsPDF } = window.jspdf;
-    const msgs = document.getElementById('messages');
-    if (!msgs) {
-        console.error("Messages element not found");
-        return;
-    }
 
-    if (typeof html2canvas === 'undefined') {
-        console.error("html2canvas not loaded");
-        return;
-    }
-
-    // 1. IMPROVED: Forced contrast and bold text for PDF output
-    const canvas = await html2canvas(msgs, {
-        scale: 3, // INCREASED: Higher resolution for sharper text
-        useCORS: true, 
-        logging: false,
-        backgroundColor: '#ffffff', // Ensures white background
-        onclone: (clonedDoc) => {
-            const clonedElement = clonedDoc.getElementById('messages');
-            if (clonedElement) {
-                // Apply styles to container
-                clonedElement.style.color = '#000000'; 
-                clonedElement.style.background = '#ffffff';
-                clonedElement.style.fontWeight = '700'; // FORCED BOLD
-                clonedElement.style.fontFamily = 'Arial, sans-serif'; // Use standard, readable font
-                clonedElement.style.webkitFontSmoothing = 'antialiased'; // Sharper text
-                clonedElement.style.mozOsxFontSmoothing = 'grayscale';
-
-                // Force styles to all child elements for maximum thickness
-                const allElements = clonedElement.querySelectorAll('*');
-                allElements.forEach(el => {
-                    el.style.color = '#000000';
-                    el.style.backgroundColor = '#ffffff';
-                    el.style.fontWeight = '700'; // Make everything bold
-                    el.style.textShadow = '0.5px 0.5px 0.5px #000000'; // Adds slight thickness
-                });
-            }
-        }
+    const doc = new jsPDF({
+        orientation: 'p',
+        unit: 'pt',
+        format: 'a4'
     });
 
-    const imgData = canvas.toDataURL('image/png', 1.0); // 1.0 quality
-    
-    // 2. Calculate dimensions to fit A4 exactly
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = pdf.internal.pageSize.getHeight();
-    
-    const imgProps = pdf.getImageProperties(imgData);
-    const pdfImgWidth = pdfWidth - 20; // 10mm margin
-    const pdfImgHeight = (imgProps.height * pdfImgWidth) / imgProps.width;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
 
-    // 3. Add image with high quality
-    pdf.addImage(imgData, 'PNG', 10, 10, pdfImgWidth, pdfImgHeight, undefined, 'FAST');
-    
-    // Save the PDF
-    pdf.save('MAXUS_chat.pdf');
+    const margin = 50;
+    const maxWidth = pageWidth - margin * 2;
+    let y = margin;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(12);
+
+    const messages = document.querySelectorAll(".message");
+
+    for (let message of messages) {
+
+        // Extract text content cleanly
+        const text = message.innerText;
+
+        // Wrap text to fit page width
+        const splitText = doc.splitTextToSize(text, maxWidth);
+
+        // If text exceeds page, add new page
+        if (y + splitText.length * 14 > pageHeight - margin) {
+            doc.addPage();
+            y = margin;
+        }
+
+        doc.text(splitText, margin, y);
+        y += splitText.length * 14 + 10;
+
+        // Handle links inside message
+        const links = message.querySelectorAll("a");
+        for (let link of links) {
+            const url = link.href;
+            const linkText = link.innerText;
+
+            if (y + 14 > pageHeight - margin) {
+                doc.addPage();
+                y = margin;
+            }
+
+            doc.setTextColor(0, 0, 255);
+            doc.textWithLink(linkText, margin, y, { url });
+            doc.setTextColor(0, 0, 0);
+
+            y += 20;
+        }
+
+        y += 10; // spacing between messages
+    }
+
+    doc.save("chat-export.pdf");
 }
+
 
 
 
