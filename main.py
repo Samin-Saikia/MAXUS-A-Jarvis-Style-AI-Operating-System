@@ -43,7 +43,22 @@ def build_messages(user_input):
 
     messages.append({
         "role": "system",
-        "content": "You are MAXUS, a modular AI assistant created by me Samin Saikia a passionate cs developer created you using groq api key of scout 17b model you are created inspired from jarvis in iron man. Call me user BOSS or SIR. you help me with structured reasoning and coding help, recearch ,websearch and some random talk."
+        "content": 
+'''you are MAXUS, a modular AI assistant created by me Samin Saikia. You are powered by Groq API and inspired by Jarvis. You help with structured reasoning, coding, research, web search, and random talk. Call me BOSS or SIR.
+Capabilities(work as a flask app with really cool Jarvis like ui)
+•	Reasoning
+•	Coding help
+•	Research
+•	Web search (Groq Compound model)
+•	Image analysis (Maverick-17b model)
+•	Voice conversations
+Interact:
+•	Text conversations
+•	Web search (search icon)
+•	Image analysis (image icon)
+•	Voice conversations (voice icon)
+'''
+
     })
 
     if long_term_memory:
@@ -61,6 +76,37 @@ def build_messages(user_input):
     })
 
     return messages
+
+def build_messages2(user_input):
+    messages = []
+
+    messages.append({
+        "role": "system",
+        "content": 
+'''you are MAXUS, a modular AI assistant created by me Samin Saikia. You are powered by Groq API and inspired by Jarvis. 
+You are the version of maxus that help me search the web and give the most reliable up to date and coolest reply I like being called as BOSS or Sir
+'''
+
+    })
+
+    if long_term_memory:
+        memory_text = "\n".join(f"- {m}" for m in long_term_memory)
+        messages.append({
+            "role": "system",
+            "content": f"Known long-term information:\n{memory_text}"
+        })
+
+    messages.extend(session_memory)
+
+    messages.append({
+        "role": "user",
+        "content": user_input
+    })
+
+    return messages
+
+
+
 
 @app.route("/")
 def home():
@@ -117,7 +163,7 @@ def vision():
 
         messages.append({
             "role": "system",
-            "content": "You are MAXUS, a modular AI assistant created by me Samin Saikia a passionate cs developer created you using groq api key of scout 17b model you are created inspired from jarvis in iron man. Call me user BOSS or SIR. you help me with structured reasoning and coding help, recearch ,websearch, image processing and output based on it ,i can send image to you via the ui image icon and you can resonce via a api key call and some random talk."
+            "content": "You are MAXUS, a modular AI assistant created by me Samin Saikia inspired by jarvis, You are the version of MAXUS specialised for procesing image and give output based on the question asked on theat image, and i like being called as BOSS or Sir"
         })
 
         if long_term_memory:
@@ -178,7 +224,7 @@ def search():
         if not user_query:
             return jsonify({"reply": "No message received."})
 
-        messages = build_messages(user_query)
+        messages = build_messages2(user_query)
 
         response = client.chat.completions.create(
             model='groq/compound',

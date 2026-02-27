@@ -642,7 +642,7 @@
 
     /* Right panel - Conversation */
     .right-panel {
-      width: 640px;
+      width: 800px;
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
@@ -1096,7 +1096,7 @@
         CONVERSATION
         <div class="conv-actions">
           <button class="conv-btn" onclick="clearMessages()">CLEAR</button>
-          <button class="conv-btn">EXPORT</button>
+          <button class="conv-btn" onclick="generatePdf()">EXPORT</button>
         </div>
       </div>
       <div class="messages" id="messages">
@@ -1153,6 +1153,9 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js/styles/github-dark.css">
   <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 
   <script>
 
@@ -1220,10 +1223,11 @@ loadJarvisVoice();
 
 function speakJarvis(text) {
     if (!text) return;
+    let cleanedText = text.replace(/[*#`]/g, '');
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(cleanedText);
 
-    window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(text);
 
     if (jarvisVoice) {
         utterance.voice = jarvisVoice;
@@ -1232,8 +1236,8 @@ function speakJarvis(text) {
     utterance.rate = 1.0;   // calm
     utterance.pitch = 0.6; // deeper
     utterance.volume = 1;
-
     window.speechSynthesis.speak(utterance);
+
 }
 
 
@@ -1241,49 +1245,62 @@ function speakJarvis(text) {
 // Move these variables outside the function so they persist between calls
 let micActive = false;
 let recognition = null;
+let finalTranscript = ''; // Persist text across sessions
 
 function toggleMic() {
-  micActive = !micActive; // Now this toggles the persistent variable
-  
-  const micBtn = document.getElementById('micBtn');
+    micActive = !micActive;
+    const micBtn = document.getElementById('micBtn');
+    const chatInput = document.getElementById('chatInput');
+    // const bars = document.querySelectorAll('.bar'); // Optional
 
-  const bars = document.querySelectorAll('.bar');
-  const badge = document.querySelector('.listening-badge div:last-child');
+    if (micActive) {
+        micBtn.classList.add('active');
+        // bars.forEach(b => b.style.animationPlayState = 'running');
 
-  if (micActive) {
-    micBtn.classList.add('active');
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SR();
+            
+            // --- KEY CHANGES HERE ---
+            recognition.continuous = true; // Keep listening even if I pause
+            recognition.interimResults = true; // Show text while speaking
+            
+            recognition.onresult = (e) => {
+                let interimTranscript = '';
+                for (let i = e.resultIndex; i < e.results.length; ++i) {
+                    if (e.results[i].isFinal) {
+                        finalTranscript += e.results[i][0].transcript + ' ';
+                    } else {
+                        interimTranscript += e.results[i][0].transcript;
+                    }
+                }
+                // Update textarea with finalized text + current interim text
+                chatInput.value = finalTranscript + interimTranscript;
+            };
 
-    bars.forEach(b => b.style.animationPlayState = 'running');
+            recognition.onerror = (e) => {
+                console.error(e);
+                toggleMic(); // Stop on error
+            };
+            
+            recognition.onend = () => {
+                if (micActive) recognition.start(); // Keep restarting if mic is still "on"
+            };
 
-    // Try Web Speech API
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognition = new SR();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.onresult = (e) => {
-        const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
-        document.getElementById('chatInput').value = transcript;
-        if (e.results[0].isFinal) { 
-          toggleMic(); 
-          sendMessage(); 
+            recognition.start();
+        } else {
+            alert("Web Speech API not supported in this browser.");
+            micActive = false;
         }
-      };
-      recognition.onerror = () => toggleMic();
-      recognition.onend = () => { 
-        if (micActive) toggleMic(); 
-      };
-      recognition.start();
     } else {
-      setTimeout(toggleMic, 3000);
+        micBtn.classList.remove('active');
+        if (recognition) {
+            recognition.stop();
+            // Optional: Store the new final value somewhere or just leave it in textarea
+            finalTranscript = chatInput.value + ' '; 
+            recognition = null;
+        }
     }
-  } else {
-    micBtn.classList.remove('active');
-    if (recognition) { 
-      recognition.stop(); 
-      recognition = null; 
-    }
-  }
 }
 
 
@@ -1328,7 +1345,7 @@ function toggleMic() {
 
       addMessage('MAXUS', data.reply);
       const selectedResponse = getRandomJarvisLine();
-      speakJarvis(selectedResponse);
+      speakJarvis(data.reply);
     }
 
     function handleKey(e) {
@@ -1390,6 +1407,7 @@ function toggleMic() {
 
   const data = await response.json();
   addMessage('MAXUS', data.reply);
+  speakJarvis(data.reply)
 }
 
  async function handleImageUpload(e) {
@@ -1470,6 +1488,70 @@ function openLinkedIn() {
   // Or open your profile
   // window.open("https://www.linkedin.com/in/your-profile", "_blank");
 }
+
+async function generatePdf() {
+    const { jsPDF } = window.jspdf;
+    const msgs = document.getElementById('messages');
+    if (!msgs) {
+        console.error("Messages element not found");
+        return;
+    }
+
+    if (typeof html2canvas === 'undefined') {
+        console.error("html2canvas not loaded");
+        return;
+    }
+
+    // 1. IMPROVED: Forced contrast and bold text for PDF output
+    const canvas = await html2canvas(msgs, {
+        scale: 3, // INCREASED: Higher resolution for sharper text
+        useCORS: true, 
+        logging: false,
+        backgroundColor: '#ffffff', // Ensures white background
+        onclone: (clonedDoc) => {
+            const clonedElement = clonedDoc.getElementById('messages');
+            if (clonedElement) {
+                // Apply styles to container
+                clonedElement.style.color = '#000000'; 
+                clonedElement.style.background = '#ffffff';
+                clonedElement.style.fontWeight = '700'; // FORCED BOLD
+                clonedElement.style.fontFamily = 'Arial, sans-serif'; // Use standard, readable font
+                clonedElement.style.webkitFontSmoothing = 'antialiased'; // Sharper text
+                clonedElement.style.mozOsxFontSmoothing = 'grayscale';
+
+                // Force styles to all child elements for maximum thickness
+                const allElements = clonedElement.querySelectorAll('*');
+                allElements.forEach(el => {
+                    el.style.color = '#000000';
+                    el.style.backgroundColor = '#ffffff';
+                    el.style.fontWeight = '700'; // Make everything bold
+                    el.style.textShadow = '0.5px 0.5px 0.5px #000000'; // Adds slight thickness
+                });
+            }
+        }
+    });
+
+    const imgData = canvas.toDataURL('image/png', 1.0); // 1.0 quality
+    
+    // 2. Calculate dimensions to fit A4 exactly
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    
+    const imgProps = pdf.getImageProperties(imgData);
+    const pdfImgWidth = pdfWidth - 20; // 10mm margin
+    const pdfImgHeight = (imgProps.height * pdfImgWidth) / imgProps.width;
+
+    // 3. Add image with high quality
+    pdf.addImage(imgData, 'PNG', 10, 10, pdfImgWidth, pdfImgHeight, undefined, 'FAST');
+    
+    // Save the PDF
+    pdf.save('MAXUS_chat.pdf');
+}
+
+
+
+
 // Example usage:
 // openChrome(); 
 
